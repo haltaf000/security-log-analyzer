@@ -1,4 +1,7 @@
 import csv
+
+from detector import is_suspicious
+
 failed_attempts = {}
 
 with open("login_logs.csv", "r") as file:
@@ -15,7 +18,7 @@ print(failed_attempts)
 alerts = []
 
 for ip, count in failed_attempts.items():
-    if count >= 3:
+    if is_suspicious(count):
         message = f"ALERT: Suspicious IP {ip} - {count} failed login attempts"
         alerts.append(message)
         print(message)
