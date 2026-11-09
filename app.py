@@ -12,6 +12,22 @@ with open("login_logs.csv", "r") as file:
 
 print(failed_attempts)
 
+alerts = []
+
 for ip, count in failed_attempts.items():
     if count >= 3:
-        print(f"ALERT: Suspicious IP {ip} - {count} failed login attempts")
+        message = f"ALERT: Suspicious IP {ip} - {count} failed login attempts"
+        alerts.append(message)
+        print(message)
+
+from pathlib import Path
+
+report_dir = Path("reports")
+report_dir.mkdir(exist_ok=True)
+
+with open(report_dir / "security_report.txt", "w") as file:
+    if alerts:
+        for alert in alerts:
+            file.write(alert + "\n")
+    else:
+        file.write("No suspicious login activity detected.\n")
