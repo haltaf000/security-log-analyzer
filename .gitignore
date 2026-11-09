@@ -11,3 +11,6 @@ __pycache__/
 
 # Generated security reports
 reports/
+
+# Private development journal
+DEV_NOTES.md
