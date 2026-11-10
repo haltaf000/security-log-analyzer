@@ -1,0 +1,5 @@
+services:
+  analyzer:
+    build: .
+    volumes:
+      - "./reports:/app/reports"
