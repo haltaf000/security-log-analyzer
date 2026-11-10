@@ -1,182 +1,114 @@
 # Security Log Analyzer
 
-A Python-based security project that analyzes simulated login events, identifies repeated failed login attempts by IP address, and generates a security report.
+Security Log Analyzer is a Python command-line application that identifies repeated failed login attempts in CSV-formatted authentication logs. It aggregates failures by IP address, flags addresses with three or more failed attempts, and writes the results to a text report.
 
-This project demonstrates Python scripting, unit testing, containerization with Docker and Docker Compose, and image vulnerability scanning with Trivy.
+The repository includes sample data, unit tests, a Docker image, and a Docker Compose configuration. The current implementation processes a local CSV file; it does not collect or monitor live authentication events.
 
 ## Features
 
-- Reads login events from a CSV file.
-- Counts failed login attempts for each IP address.
-- Flags IP addresses with **3 or more** failed attempts.
-- Saves alerts to a text report.
-- Includes unit tests for the detection threshold.
-- Runs locally or in a Docker container.
-- Uses Docker Compose to save reports on the host through a bind mount.
-- Runs the application as a non-root Linux user (`appuser`).
+- Parses login records using Python's standard `csv` library.
+- Aggregates failed login attempts by source IP address.
+- Generates an alert when an IP address has **three or more** failed attempts.
+- Writes detection results to `reports/security_report.txt`.
+- Provides unit tests for the detection threshold.
+- Supports local execution and containerized execution with Docker Compose.
 
-## How It Works
+## Detection logic
 
-1. `app.py` reads `login_logs.csv`.
-2. It counts rows with a `FAILED` login status, grouped by IP address.
-3. `detector.py` checks whether the number of failed attempts meets the threshold (default: `3`).
-4. The application prints alerts and writes them to `reports/security_report.txt`.
-5. If no IP address meets the threshold, the report indicates that no suspicious login activity was detected.
+The application reads `login_logs.csv`, filters records with a `FAILED` status, and counts those events by IP address. The detection rule in `detector.py` determines whether each count meets the alert threshold.
 
-### Example Alert
+For the included sample data, the report contains:
 
 ```text
 ALERT: Suspicious IP 192.168.1.20 - 5 failed login attempts
 ```
 
-The sample data is simulated and is intended for learning and testing.
+If no IP address meets the threshold, the report states that no suspicious login activity was detected.
 
-## Project Structure
+## Repository contents
 
-```text
-security-log-analyzer/
-├── app.py
-├── detector.py
-├── test_detector.py
-├── login_logs.csv
-├── Dockerfile
-├── compose.yaml
-├── .gitignore
-└── README.md
-```
-
-| File | Purpose |
+| Path | Description |
 | --- | --- |
-| `app.py` | Reads logs, counts failed attempts, and writes the report. |
-| `detector.py` | Implements the failed-login threshold check. |
-| `test_detector.py` | Tests the threshold logic with Python's `unittest`. |
-| `login_logs.csv` | Provides simulated login events. |
-| `Dockerfile` | Builds the Python application image. |
-| `compose.yaml` | Builds and runs the analyzer and mounts the reports directory. |
-| `.gitignore` | Excludes local-only files and generated reports from Git. |
+| `app.py` | CSV processing, alert generation, and report output |
+| `detector.py` | Failed-login threshold evaluation |
+| `test_detector.py` | Unit tests for the detection rule |
+| `login_logs.csv` | Simulated authentication events |
+| `Dockerfile` | Container image definition and runtime user configuration |
+| `compose.yaml` | Analyzer service and report bind mount |
+| `.gitignore` | Exclusions for local files and generated artifacts |
 
-The `reports/` directory is generated when the application runs and is not committed to Git.
+Generated reports are stored in `reports/`, which is excluded from version control.
 
-## Requirements
+## Getting started
 
-For local execution:
+### Local execution
 
-- Python 3.12 (the version used in the Docker image), or another compatible Python 3 version.
-
-For containerized execution:
-
-- Docker with Docker Compose support (for example, Docker Desktop).
-
-For security scanning:
-
-- Trivy.
-
-No additional third-party Python libraries are required by the application.
-
-## Getting Started
-
-Clone the repository and enter the project folder:
+**Requirements:** Python 3 and Git. The Docker image uses Python 3.12. No third-party Python dependencies are required.
 
 ```powershell
 git clone https://github.com/haltaf000/security-log-analyzer.git
 cd security-log-analyzer
-```
-
-### Run Locally
-
-```powershell
 python app.py
 ```
 
-View the generated report in PowerShell:
-
-```powershell
-Get-Content .\reports\security_report.txt
-```
-
-### Run Unit Tests
+Run the unit tests:
 
 ```powershell
 python -m unittest -v
 ```
 
-The tests check counts below, equal to, and above the detection threshold.
+### Docker Compose
 
-### Run with Docker Compose
-
-Build the image:
+**Requirements:** Docker with Compose support.
 
 ```powershell
 docker compose build
-```
-
-Run the analyzer as a one-off container:
-
-```powershell
 docker compose run --rm analyzer
 ```
 
-Read the report on the host:
+The Compose service mounts the local `./reports` directory at `/app/reports`. Generated reports therefore remain available on the host after the container exits.
+
+To view the report in PowerShell:
 
 ```powershell
 Get-Content .\reports\security_report.txt
 ```
 
-Docker Compose bind-mounts the local `./reports` folder to `/app/reports` inside the container. This keeps the report accessible after the container exits. No ports are required because the analyzer is a batch application, not a web server.
+The analyzer is a single-run process and does not expose any network ports.
 
-## Container Security
+## Container security
 
-### Non-Root Execution
+The Dockerfile applies two runtime and dependency measures:
 
-The Docker image creates a dedicated Linux user named `appuser` and runs the application as that user rather than as root.
+- **Dependency update:** Upgrades `pip` during the image build.
+- **Least privilege:** Creates an `appuser` account and runs the application as a non-root user. The account was verified with UID `1000` in the built container.
 
-You can verify the identity with:
+### Trivy vulnerability assessment
 
-```powershell
-docker compose run --rm analyzer id
-```
-
-The tested image returned `uid=1000(appuser)`, confirming non-root execution. This reduces privileges but does not eliminate security risk.
-
-### Trivy Vulnerability Scanning
-
-Scan the image created by Docker Compose:
+Scan the Compose-built image with:
 
 ```powershell
 trivy image security-log-analyzer-analyzer:latest
 ```
 
-The following results are from development scans in **November 2026**:
+The following results were recorded in **November 2026**:
 
-| Finding | Before pip upgrade | After pip upgrade |
+| Scan category | Initial image | After pip upgrade |
 | --- | ---: | ---: |
-| Debian OS package findings | 189 | 189 |
-| pip package findings | 6 | 0 |
-| Other Python package / embedded SBOM findings | 0 | 3 |
-| **Total reported findings** | **195** | **192** |
+| Debian packages | 189 | 189 |
+| pip | 6 | 0 |
+| Additional Python-package findings | 0 | 3 |
+| **Total findings** | **195** | **192** |
 
-The image was updated from pip `25.0.1` to `26.3`. The updated scan reported no vulnerabilities against pip itself, but it reported three Python package findings associated with embedded SBOM data. Trivy warned that third-party SBOM data may affect detection accuracy.
+The updated image contained `pip 26.3`, with no vulnerabilities reported against pip itself. Trivy also reported three Python-package findings and warned that third-party SBOM data may affect vulnerability detection. Those findings require separate validation; they have not been established as either exploitable issues or false positives.
 
-**Important:** The scan still reported **189 Debian OS package findings**, including **49 HIGH** findings, and **0 CRITICAL** findings for Debian. The remaining findings have not all been remediated or assessed for exploitability. The three Python findings also require verification; they should not automatically be treated as exploitable or false positives.
+The Debian scan continued to report **189 findings**, including **49 HIGH** and **0 CRITICAL**. These issues remain open for assessment and remediation. Non-root execution limits process privileges but does not eliminate vulnerabilities in installed packages.
 
-Scan results can change when base images, packages, or vulnerability databases are updated.
+Scan results are a point-in-time record and may change as the base image and vulnerability databases are updated.
 
-## Limitations
+## Scope and next steps
 
-- The application processes a local, simulated CSV file rather than live authentication logs.
-- The detection rule uses a simple failed-attempt threshold; it does not evaluate timing or account context.
-- Container security work is ongoing, and known vulnerability findings remain.
+The current implementation uses simulated CSV data and a fixed threshold in the application workflow. It does not provide real-time log ingestion, correlation across systems, or automatic incident response.
 
-## Future Improvements
+Planned enhancements include configurable detection settings, support for additional log formats, automated tests and image scans in GitHub Actions, and continued review of base-image vulnerabilities.
 
-- Add configurable detection thresholds.
-- Support additional log formats and larger datasets.
-- Add GitHub Actions to run tests and security scans automatically.
-- Continue reviewing and reducing relevant container vulnerabilities.
-
-## Technologies Used
-
-- Python and `unittest`
-- Docker and Docker Compose
-- Trivy
-- Git and GitHub
